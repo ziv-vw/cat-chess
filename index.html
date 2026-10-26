@@ -1,0 +1,271 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Cat Chess</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600&display=swap">
+<style>
+/* Layout: a chessboard of cat pieces, centered, with a cozy control strip
+   below it. The pieces are image sprites; everything else is warm and quiet. */
+:root{
+  --bg:#efe6d6;--fg:#2c2720;--muted:#7a7265;--line:#dcd2bf;--panel:#f7f1e6;
+  --accent:#d98a3d;
+  --sq-light:#efe0c4;--sq-dark:#b58a63;
+  --hint:#6fae71;--sel:#e8b24c;--last:#e8d07a;--check:#d35b4a;
+  --font-display:"Baloo 2",system-ui,sans-serif;
+  --font-ui:"Hanken Grotesk",system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17140f;--fg:#ece5d7;--muted:#9a917f;--line:#2f2a21;--panel:#211c15;
+  --accent:#e6a05a;--sq-light:#6f6552;--sq-dark:#44392c;
+  --hint:#79b47b;--sel:#e8b24c;--last:#7d6f3f;--check:#e0705e;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#17140f;--fg:#ece5d7;--muted:#9a917f;--line:#2f2a21;--panel:#211c15;
+  --accent:#e6a05a;--sq-light:#6f6552;--sq-dark:#44392c;
+  --hint:#79b47b;--sel:#e8b24c;--last:#7d6f3f;--check:#e0705e;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:600px;margin-inline:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:clamp(16px,4vw,30px);
+  display:flex;flex-direction:column;gap:16px;align-items:center}
+
+header{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.title{display:flex;align-items:center;gap:8px}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(1.7rem,6vw,2.3rem);margin:0;letter-spacing:.01em}
+.title .kitten{width:44px;height:48px;flex:0 0 auto;object-fit:contain}
+.theme-btn{font:inherit;font-size:.82rem;color:var(--muted);background:none;border:0;cursor:pointer;
+  border-bottom:1px solid var(--line);padding:0 0 1px}
+.theme-btn:hover{color:var(--fg)}
+
+.modes{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px}
+.modes button{font:inherit;font-weight:600;font-size:.86rem;border:0;background:none;color:var(--muted);
+  cursor:pointer;padding:6px 14px;border-radius:999px}
+.modes button[aria-pressed="true"]{background:var(--accent);color:#fff}
+
+.status{width:100%;text-align:center;min-height:1.6em;font-weight:600;font-size:1.02rem}
+.status small{display:block;font-weight:400;color:var(--muted);font-size:.84rem}
+.status.over{color:var(--accent)}
+
+.boardwrap{position:relative;width:min(94vw,524px);padding-top:6%}  /* top gutter so tall pieces can rise */
+.board{position:relative;width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+  border-radius:12px;box-shadow:0 14px 34px -18px rgba(60,40,20,.6);border:1px solid var(--line)}
+.board .sq:nth-child(1){border-top-left-radius:11px}
+.board .sq:nth-child(8){border-top-right-radius:11px}
+.board .sq:nth-child(57){border-bottom-left-radius:11px}
+.board .sq:nth-child(64){border-bottom-right-radius:11px}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;cursor:default}
+.sq.light{background:var(--sq-light)}
+.sq.dark{background:var(--sq-dark)}
+.sq.pick{cursor:pointer}
+.sq.last::after{content:"";position:absolute;inset:0;background:var(--last);opacity:.5;mix-blend-mode:multiply}
+.sq.sel{box-shadow:inset 0 0 0 4px var(--sel)}
+.sq.check::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,var(--check) 0%,transparent 70%);opacity:.75}
+/* pieces anchored to the bottom of their square and sized by role: the pawns sit
+   inside their square, while the taller cats rise a little and overlap the rank behind */
+.sq img.pc{position:absolute;left:50%;bottom:3%;transform:translateX(-50%);
+  width:auto;max-width:100%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 3px 2px rgba(0,0,0,.2))}
+.sq img.t1{height:84%}  .sq img.t2{height:98%}  .sq img.t3{height:100%}
+.sq img.t4{height:96%}  .sq img.t5{height:108%} .sq img.t6{height:114%}
+.dot{position:absolute;width:30%;height:30%;border-radius:50%;background:var(--hint);opacity:.7;z-index:1}
+.dot.cap{width:86%;height:86%;background:none;border:5px solid var(--hint);opacity:.6;border-radius:12px}
+
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.btn{font:inherit;font-weight:600;font-size:.9rem;cursor:pointer;border-radius:10px;padding:9px 16px;
+  border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.05);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line);color:var(--muted)}
+.btn:focus-visible{outline:2.5px solid var(--accent);outline-offset:2px}
+
+.promo{position:absolute;inset:0;background:rgba(20,16,10,.55);display:flex;align-items:center;justify-content:center;z-index:5;border-radius:12px}
+.promo .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;gap:8px}
+.promo button{width:66px;height:70px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer;padding:3px}
+.promo button:hover{border-color:var(--accent)}
+.promo img{width:100%;height:100%;object-fit:contain}
+
+footer{color:var(--muted);font-size:.8rem;text-align:center;text-wrap:balance}
+footer b{color:var(--accent)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="title"><img class="kitten" id="logo" alt=""><h1>Cat Chess</h1></div>
+    <button class="theme-btn" id="theme" type="button">Switch theme</button>
+  </header>
+
+  <div class="modes" role="group" aria-label="Game mode">
+    <button id="m-two" type="button" aria-pressed="true">Two players</button>
+    <button id="m-cpu" type="button" aria-pressed="false">Vs. computer</button>
+  </div>
+
+  <div class="status" id="status">Loading the board&hellip;</div>
+
+  <div class="boardwrap">
+    <div class="board" id="board"></div>
+    <div class="promo" id="promo" hidden><div class="card" id="promo-card"></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="new" type="button">New game</button>
+    <button class="btn" id="undo" type="button">Undo</button>
+    <button class="btn" id="flip" type="button">Flip board</button>
+  </div>
+
+  <footer>
+    Tap a cat, then a highlighted square. The cream cats vs. the tuxedos &mdash; your two cats.<br>
+    In <b>Vs. computer</b> you play the cream cats. Rules run on a chess engine written in C, compiled to WebAssembly.
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+
+// pieces — the sprites in pieces/. color 0 = cream, 1 = tuxedo; type 1 pawn 2 knight 3 bishop 4 rook 5 queen 6 king
+const NAME={1:"pawn",2:"knight",3:"bishop",4:"rook",5:"queen",6:"king"};
+function pieceEl(t,c){ return '<img class="pc t'+t+'" draggable="false" alt="" src="pieces/'+(c===0?"him_":"tux_")+NAME[t]+'.png">'; }
+
+// the C++ engine, compiled to wasm
+let E=null;
+async function loadEngine(){
+  const r=await fetch("chess.wasm");
+  const {instance}=await WebAssembly.instantiate(await r.arrayBuffer(),{});
+  E=instance.exports;
+}
+
+// UI-side game state
+let mode="two";
+const HUMAN=0;
+let orient="white";
+let sel=-1, dests=[], history=[], last=null, over=false, thinking=false, promoPend=null;
+
+function newGame(){
+  E.reset(); E.seed((Date.now()>>>0)||1);
+  sel=-1;dests=[];history=[];last=null;over=false;thinking=false;promoPend=null;
+  $("promo").hidden=true;
+  render();updateStatus();
+}
+function sideName(c){return c===0?"White":"Black";}
+
+function updateStatus(){
+  const el=$("status");el.classList.remove("over");
+  const s=E.status(), turn=E.side();
+  if(s===2){ over=true; el.innerHTML="Checkmate &mdash; "+sideName(turn^1)+" wins! <small>the "+(turn^1?'tuxedo':'cream')+" cats triumph</small>"; el.classList.add("over"); }
+  else if(s===3){ over=true; el.innerHTML="Stalemate &mdash; it's a draw. <small>no legal moves, but no check</small>"; el.classList.add("over"); }
+  else{
+    const who=sideName(turn)+" to move";
+    const sub=mode==="cpu"?(turn===HUMAN?"your turn (cream)":"the computer is thinking&hellip;"):"";
+    el.innerHTML=(s===1?sideName(turn)+" is in check":who)+(sub?" <small>"+sub+"</small>":"");
+  }
+}
+
+function fromDisplay(row,col){ return orient==="white"?((7-row)*8+col):(row*8+(7-col)); }
+
+function render(){
+  const b=$("board");b.innerHTML="";
+  const kingInCheck=(E.status()===1)?kingSquare(E.side()):-1;
+  for(let row=0;row<8;row++)for(let col=0;col<8;col++){
+    const sq=fromDisplay(row,col);
+    const d=document.createElement("div");
+    d.className="sq "+(((row+col)&1)?"dark":"light");
+    d.style.zIndex=row;   // rows nearer the viewer overlap the ones behind
+    const pc=E.pieceAt(sq);
+    if(sq===sel)d.classList.add("sel");
+    if(last&&(sq===last.from||sq===last.to))d.classList.add("last");
+    if(sq===kingInCheck)d.classList.add("check");
+    if(pc){const t=pc&7,c=pc>>3;d.innerHTML=pieceEl(t,c);}
+    if(dests.includes(sq)){const dot=document.createElement("div");dot.className="dot"+(pc?" cap":"");d.appendChild(dot);}
+    const selectable=pc && (pc>>3)===E.side() && !over && !thinking && (mode==="two"||E.side()===HUMAN);
+    if(selectable||dests.includes(sq))d.classList.add("pick");
+    d.addEventListener("click",()=>onClick(sq));
+    b.appendChild(d);
+  }
+}
+function kingSquare(c){for(let i=0;i<64;i++){const p=E.pieceAt(i);if(p&&(p&7)===6&&(p>>3)===c)return i;}return -1;}
+
+function onClick(sq){
+  if(over||thinking||promoPend)return;
+  if(mode==="cpu"&&E.side()!==HUMAN)return;
+  const pc=E.pieceAt(sq);
+  if(sel===-1){ if(pc&&(pc>>3)===E.side())selectSquare(sq); return; }
+  if(sq===sel){ sel=-1;dests=[];render();return; }
+  if(dests.includes(sq)){
+    if(E.isPromotion(sel,sq)){ askPromotion(sel,sq); return; }
+    doMove(sel,sq,0); return;
+  }
+  if(pc&&(pc>>3)===E.side())selectSquare(sq); else {sel=-1;dests=[];render();}
+}
+function selectSquare(sq){
+  sel=sq;dests=[];
+  const n=E.movesFrom(sq);
+  for(let i=0;i<n;i++)dests.push(E.destAt(i));
+  render();
+}
+
+function doMove(from,to,promo){
+  if(!E.move(from,to,promo))return;
+  history.push({from,to,promo});
+  last={from,to};sel=-1;dests=[];
+  render();updateStatus();
+  if(mode==="cpu"&&!over&&E.side()!==HUMAN){ thinking=true;updateStatus();render();
+    setTimeout(aiTurn,420); }
+}
+function aiTurn(){
+  const code=E.aiMove();
+  thinking=false;
+  if(code>=0){ const to=code&0xff,from=(code>>8)&0xff,promo=(code>>16)&0xff;
+    history.push({from,to,promo});last={from,to}; }
+  render();updateStatus();
+}
+
+function askPromotion(from,to){
+  promoPend={from,to};
+  const card=$("promo-card");card.innerHTML="";
+  [5,4,3,2].forEach(t=>{ const btn=document.createElement("button");btn.type="button";
+    btn.innerHTML=pieceEl(t,E.side());btn.setAttribute("aria-label",NAME[t]);
+    btn.addEventListener("click",()=>{ $("promo").hidden=true;const p=promoPend;promoPend=null;doMove(p.from,p.to,t); });
+    card.appendChild(btn); });
+  $("promo").hidden=false;
+}
+
+function undo(){
+  if(!history.length||thinking)return;
+  let pops=(mode==="cpu"&&history.length>=2&&E.side()===HUMAN)?2:1;
+  history=history.slice(0,Math.max(0,history.length-pops));
+  E.reset();
+  for(const m of history)E.move(m.from,m.to,m.promo);
+  sel=-1;dests=[];over=false;promoPend=null;$("promo").hidden=true;
+  last=history.length?{from:history[history.length-1].from,to:history[history.length-1].to}:null;
+  render();updateStatus();
+}
+
+// controls
+function setMode(m){ mode=m;
+  $("m-two").setAttribute("aria-pressed",m==="two");
+  $("m-cpu").setAttribute("aria-pressed",m==="cpu");
+  newGame();
+}
+$("m-two").addEventListener("click",()=>setMode("two"));
+$("m-cpu").addEventListener("click",()=>setMode("cpu"));
+$("new").addEventListener("click",newGame);
+$("undo").addEventListener("click",undo);
+$("flip").addEventListener("click",()=>{orient=orient==="white"?"black":"white";render();});
+$("theme").addEventListener("click",()=>{
+  const r=document.documentElement,cur=r.getAttribute("data-theme");
+  const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
+  r.setAttribute("data-theme",dark?"light":"dark");
+});
+$("logo").src="pieces/him_king.png";
+
+// load the wasm engine, then start a game
+loadEngine().then(()=>{ newGame(); })
+  .catch(()=>{ $("status").innerHTML="This viewer couldn't start the WebAssembly engine. <small>the downloadable version runs it when hosted</small>"; });
+</script>
